@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#/usr/bin/env bash
 
 #https://faq.i3wm.org/question/83/how-to-run-i3lock-after-computer-inactivity.1.html
 
