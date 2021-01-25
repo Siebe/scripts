@@ -1,3 +1,5 @@
+#/usr/bin/env bash
+
 hostfile=$1
 if [ -z "$1" ];
   then echo "enter a hostfile";
