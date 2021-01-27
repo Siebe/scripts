@@ -3,11 +3,11 @@
 pattern=''
 type=''
 
-if [[ $# -eq 1 ]] ; then
+if [ $# -eq 1 ] ; then
     pattern=$1
     type='deployment'
 fi
-if [[ $# -eq 2 ]] ; then
+if [ $# -eq 2 ] ; then
     pattern=$2
     type=$1
 fi
