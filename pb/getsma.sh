@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 
 hostfile=$1
 if [ -z "$1" ];

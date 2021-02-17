@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 
 i3-msg -q floating enable
 i3-msg -q resize set 480px 120px

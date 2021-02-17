@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 COMMAND="$*"
 PROCESSNAME="$1"
 

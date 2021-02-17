@@ -1,4 +1,4 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 REDSHIFT_OFF=$(xrandr --verbose | grep Gamma.*1.0:1.0:1.0 | wc -l)
 echo $REDSHIFT_ON
 
