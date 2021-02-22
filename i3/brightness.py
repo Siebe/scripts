@@ -3,7 +3,16 @@
 import os;
 import sys;
 
-brightness = round(float(os.popen('xbacklight').read()));
+#For cbacklight to work you might need to:
+# sudo chown root:video /sys/class/backlight/intel_backlight/brightness
+# sudo chmod 664 /sys/class/backlight/intel_backlight/brightness
+getBacklightPercentCommand = '$SCRIPT_DIR/i3/cbacklight | grep -Po "\d*(\.\d+)?"'
+setBacklightPercentCommand = '$SCRIPT_DIR/i3/cbacklight --set '
+
+#getBacklightPercentCommand = 'xbacklight'
+#setBacklightPercentCommand = 'xbacklight -set '
+
+brightness = round(float(os.popen(getBacklightPercentCommand).read()));
 print("Current brightness: "+str(brightness));
 
 multiply = int(sys.argv[1]);
@@ -30,4 +39,4 @@ brightness *= multiply;
 
 print("New brightness: "+str(brightness));
 
-os.system('xbacklight -set '+str(brightness)); 
+os.system(setBacklightPercentCommand+str(int(brightness)));

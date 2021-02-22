@@ -64,7 +64,7 @@ regexsafe_input=${input//\//\\/}
 inputlines=$(echo "$input" | wc -l)
 
 if [ -n "$by_key" ]; then
-  if [ "$inputlines" -gt "1"]; then
+  if [ "$inputlines" -gt "1" ]; then
     >&2 echo "Error: cannot match by key and handle multiple lines of input"; usage; exit 1;
   fi
   extracted_key=''
