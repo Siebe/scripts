@@ -31,12 +31,16 @@ export SCRIPT_DIR=$(dirname "$(realpath "$0")")
 I3_CONFIG=$HOME/.config/i3/config
 BASH_CONFIG=$HOME/.bashrc
 ZSH_CONFIG=$HOME/.zshrc
+OH_MY_ZSH_CONFIG=$HOME/.oh-my-zsh
 PROFILE=$HOME/.profile
+
 
 if [ -z "$remove" ]; then
   if [ -n "$prequisites" ]; then
     echo "* installing APT prequisites"
+    sudo apt update && sudo apt dist-upgrade -y
     sudo apt install vim zsh
+    sudo apt autoremove -y && sudo apt clean
     [ -n "$no_gui"] && sudo apt install i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock
     echo "* installing Snap prequisites"
     sudo snap install kubectl --classic
@@ -45,12 +49,14 @@ if [ -z "$remove" ]; then
       mkdir -p $HOME/.config/i3
       cp $SCRIPT_DIR/lib/configs/i3config.conf I3_CONFIG
     fi
-    echo "* installing oh-my-zsh from Github"
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    if [ ! -d "$OH_MY_ZSH_CONFIG" ]; then
+      echo "* installing oh-my-zsh from Github"
+      sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    fi
   fi
-  fileline="$SCRIPT_DIR/lib/fileline.sh -vf"
+  fileline="$SCRIPT_DIR/lib/fileline.sh -f"
 else
-  fileline="$SCRIPT_DIR/lib/fileline.sh -vrf"
+  fileline="$SCRIPT_DIR/lib/fileline.sh -rf"
 fi
 
 install_k8s_aliases () {

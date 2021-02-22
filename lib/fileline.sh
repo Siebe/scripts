@@ -63,10 +63,12 @@ regexsafe_input=${input//\//\\/}
 
 inputlines=$(echo "$input" | wc -l)
 
+#TODO handle multple lines for not by key
+if [ "$inputlines" -gt "1" ]; then
+  >&2 echo "Error: cannot handle multiple lines of input"; usage; exit 1;
+fi
+
 if [ -n "$by_key" ]; then
-  if [ "$inputlines" -gt "1" ]; then
-    >&2 echo "Error: cannot match by key and handle multiple lines of input"; usage; exit 1;
-  fi
   extracted_key=''
   # match by key. if replace, expect the separator in the match input. if remove separator is not mandatory
   if [[ $input == *"$separator"* ]] || [ ! -z remove ]; then
