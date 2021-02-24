@@ -106,6 +106,7 @@ if [ -n "$verbose" ]; then
     echo "Extracted key   : \"$extracted_key\""
   fi
   echo "Search string   : \"$search_string\""
+  echo "Match count     : $match_count"
   echo -n "Matching Lines  : "; [ -z "$all_matches" ] && echo ${match_lines[0]} || echo ${matchin_inputs[*]}
   echo -n "Dry run         : "; [ -z "$dry_run" ] && echo "no" || echo "yes"
 fi
