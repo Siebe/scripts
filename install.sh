@@ -80,6 +80,7 @@ fi
 [ -n "$verbose" ] && [ "$verbose" -gt 1 ] && fileLine="${fileLine}v"
 fileLine="${fileLine}f"
 
+
 ### get the $WAN_IP and prepare empty lines command
 [ -n "$verbose" ] && echo "Preparing whatsmyip and remove-emptyline command"
 source $SCRIPT_DIR/lib/whatsmyip.sh &>/dev/null
@@ -89,9 +90,11 @@ source $SCRIPT_DIR/lib/whatsmyip.sh &>/dev/null
 removeEmptyLines="$SCRIPT_DIR/lib/remove-empty-lines.sh -B"
 [ -n "$dry_run" ] && removeEmptyLines="${removeEmptyLines}d"
 [ -n "$verbose" ] && [ "$verbose" -gt 1 ] && removeEmptyLines="${removeEmptyLines}v"
+
 appendEmptyLine () {
    [ -z "$dry_run" ] && [ -z "$remove" ] && echo "" >> $1
 }
+
 
 ###Verbose stuff
 if [ -n "$verbose" ]; then
@@ -125,7 +128,7 @@ if [ -z "$no_backups" ]; then
     file=$1
     [ ! -f "$file" ] && ([ -n "$verbose" ] && echo "No backup to be made, file does not exist: ${file}"; exit 0)
     [ -f "${file}.bak.${today}" ] && ([ -n "$verbose" ] && echo "No backup to be made, today's backup already exists: ${file}.bak.${today}"; exit 0)
-    cp "$file" "${file}.bak.${today}"
+    [ -z "$dry_run"] && cp "$file" "${file}.bak.${today}"
   }
 
   echo "* creating Backups"
@@ -212,11 +215,10 @@ $fileLine $PROFILE -- "#Custom scripts stuff"
 $fileLine $PROFILE -k -- "export SCRIPT_DIR=\"${SCRIPT_DIR}\""
 $removeEmptyLines $PROFILE
 
-
 if [ -n "$shellconfig" ]; then
   install_lib_aliases $shellconfig
   $fileLine $shellconfig -- "eval \"\$(thefuck --alias)\""
-  $fileLine $shellconfig -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh #set wan ip address in env variables"
+  $fileLine $shellconfig -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
 
   [ -z "$no_k8s" ] && install_k8s_aliases $shellconfig
   [ -z "$no_k8s" ] && $fileLine $shellconfig -- "alias k='kubectl'"
@@ -227,7 +229,7 @@ if [ -n "$shellconfig" ]; then
 else
   if [ -f "$BASH_CONFIG" ];then
     install_lib_aliases $BASH_CONFIG
-    $fileLine $BASH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh #set wan ip address in env variables"
+    $fileLine $BASH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
     $fileLine $BASH_CONFIG -- "eval \"\$(thefuck --alias)\""
 
     if [ -z "$no_k8s" ]; then
@@ -244,7 +246,7 @@ else
   if [ -f "$ZSH_CONFIG" ]; then
     $fileLine $ZSH_CONFIG -k -- "plugins=(ansible docker dotenv git golang homestead kubectl laravel microk8s npm python ssh-agent thefuck vim-interaction)"
     install_lib_aliases $ZSH_CONFIG
-    $fileLine $ZSH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh #set wan ip address in env variables"
+    $fileLine $ZSH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
 
     [ -z "$no_k8s" ] && install_k8s_aliases $ZSH_CONFIG
 
@@ -253,7 +255,6 @@ else
     $removeEmptyLines $ZSH_CONFIG
   fi
 fi
-
 
 if [ -n "$no_i3" ]; then
   update_i3_config
