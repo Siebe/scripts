@@ -51,7 +51,7 @@ done
 shift $(($OPTIND - 1))
 expected_string="$@"
 
-[ -n "$quiet" ] && unset debug
+[ -n "$quiet" ] && unset verbose
 [ -z "$expected_string" ] && { [ -z "$quiet" ] && >&2 echo 'Error: TESTSTRING required'; usage; exit 1; }
 [ -n "$multiline" ] && [ -n "$regex" ] && { [ -z "$quiet" ] && >&2 echo 'Error: Can not use regex and multiline mode simultaneously'; usage; exit 1; }
 if [ -n "$command" ]; then
@@ -95,7 +95,7 @@ if [ -n "$verbose" ]; then
     echo "${bold}Kill signal       : ${kill_signal}"
   fi
   echo -n "${bold}Regex             : "; [ -z "$regex" ] && echo "no" || echo "yes${normal}"
-  echo "2${bold}pid              : ${my_pid}${normal}"
+  echo "${bold}pid              : ${my_pid}${normal}"
 fi
 
 #run before exiting
