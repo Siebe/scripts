@@ -185,7 +185,7 @@ install_work_aliases () {
   appendEmptyLine $file
   echo "* Installing PB aliases in shell config ${file}"
   $fileLine $file -- "#### Custom Pluxbox scripts stuff ####"
-  $fileLine $file -k -- "export KANTOORIP=5.83.3.86"
+  $fileLine $file -k -- "export KANTOORIP=92.66.145.13"
   $fileLine $file -- "alias kssh='\$SCRIPT_DIR/pb/kssh.sh'"
   $fileLine $file -- "alias getsma='\$SCRIPT_DIR/pb/getsma.sh'"
   #End Pluxbox stuff

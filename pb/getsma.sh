@@ -11,4 +11,4 @@ if [ -z "$ip" ];
   then echo "not found!";
   exit 1;
 fi
-ssh -J siebe@kantoor.pluxbox.nl root@$ip 'php /var/www/radiomanager/artisan sma:password'
+ssh root@$ip 'php /var/www/radiomanager/artisan sma:password'
