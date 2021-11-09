@@ -155,7 +155,7 @@ if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
   if [ -z "$no_i3" ] && [ ! -f "$I3_CONFIG" ]; then
     echo "* initiating i3 config"
     mkdir -p $HOME/.config/i3
-    cp $SCRIPT_DIR/lib/configs/i3config.conf I3_CONFIG
+    cp $SCRIPT_DIR/lib/configs/i3config.conf $I3_CONFIG
   fi
   if [ ! -d "$OH_MY_ZSH_CONFIG" ]; then
     echo "* installing oh-my-zsh from Github"
