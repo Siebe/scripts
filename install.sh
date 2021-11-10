@@ -141,15 +141,15 @@ else
 fi
 
 
-#### Install them excuisite prequisite applications:
+#### Install them exquisite prequisite applications:
 [ -n "$prequisites" ] && [ -n "$dry_run" ] && [ -n "$verbose" ] && echo "Not installing prequisites in dry-run mode..."
 [ -n "$prequisites" ] && [ -n "$remove" ] && [ -n "$verbose" ] && echo "Not installing prequisites when removing"
 if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
   echo "* installing APT prequisites"
   sudo apt update && sudo apt dist-upgrade -y
-  sudo apt install vim zsh curl
+  sudo apt install vim zsh curl python thefuck pavucontrol jq cowsay
   sudo apt autoremove -y && sudo apt clean
-  [ -z "$no_i3" ] && sudo apt install i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock
+  [ -z "$no_i3" ] && sudo apt install i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock imagemagick
   echo "* installing Snap prequisites"
   [ -z "$no_k8s" ] && sudo snap install kubectl --classic
   if [ -z "$no_i3" ] && [ ! -f "$I3_CONFIG" ]; then
