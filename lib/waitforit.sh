@@ -2,18 +2,19 @@
 
 usage () {
   if [ -z "$quiet" ]; then
-    echo 'Wait for certain output of something and stop it... yeah just like that.'
+    echo 'Wait for certain output of something and stop that something... yeah just like that.'
+    echo 'Either run and keep repeating a command within this script or pipe something to it'
     echo ' ./waitforit.sh [-tFStmrkv] [-c COMMAND] [-t SLEEPTIME] [-T TIMEOUT] [-R RETRIES] [-K SIGNAL] -- TESTSTRING'
     echo 'TESTSTRING = string to test with'
     echo '-c COMMAND = command to run and repeat, if omitted listen to lines from STDIN'
-    echo '-t SLEEPTIME = seconds to sleep between command repeat, 0 means no repeat (default 0)'
-    echo '-T TIMEOUT = stop after TIMEOUT seconds, 0 is no timeout (default 0)'
-    echo '-R RETRIES = stop after repeating RETRIES times (default infinite)'
+    echo '-t SLEEPTIME = seconds to sleep between command repeat, 0 means no repeat (default: 0)'
+    echo '-T TIMEOUT = stop after TIMEOUT seconds, 0 is no timeout (default: 0)'
+    echo '-R RETRIES = stop after repeating RETRIES times (default: infinite)'
     echo '-F = ignore command failure and keep repeating after non-zero exit codes'
     echo '-S = ignore STDERR from command, else take STDERR in the result to be tested'
-    echo '-m = multiline mode, command only'
+    echo '-m = multiline mode; command only'
     echo '-r = regex mode, TESTSTRING is now simple regex pattern; no multiline'
-    echo '-k = king mode, kill parent process(es)'
+    echo '-k = king mode, kill parent process, instead of just siblings; no command only'
     echo '-K SIGNAL = kill signal, choose your murder weapon (default: 1)'
     echo '-v = verbose mode'
     echo '-q = quiet mode, combine with -k for ninja mode'
@@ -21,6 +22,7 @@ usage () {
 }
 
 my_pid=$$
+parent_pid=$(ps -o ppid= -p ${my_pid})
 command=""
 sleep_time=1
 repeats=0
@@ -58,7 +60,7 @@ if [ -n "$command" ]; then
   [ -n "$kill_parent" ] && unset kill_parent && [ -z "$quiet" ] && echo "Warning: can not kill parent when running command as child"
   [ "$sleep_time" -lt 1 ] && sleep_time=1 && [ -z "$quiet" ] && echo "Warning: SLEEPTIME can not be less than 1"
 else
-  if [ "$kill_signal" -lt 0] || [ "$kill_signal" -gt 64]; then
+  if [ "$kill_signal" -lt 0 ] || [ "$kill_signal" -gt 64 ]; then
     [ -z "$quiet" ] && >&2 echo 'Error: invalid KILLSIGNAL'; usage; exit 1;
   fi
   [ -n "$multiline" ] && unset multiline && [ -z "$quiet" ] && echo "Warning: can not use multiline with in stdin mode"
@@ -95,7 +97,9 @@ if [ -n "$verbose" ]; then
     echo "${bold}Kill signal       : ${kill_signal}"
   fi
   echo -n "${bold}Regex             : "; [ -z "$regex" ] && echo "no" || echo "yes${normal}"
-  echo "${bold}pid              : ${my_pid}${normal}"
+  echo "${bold}PID              : ${my_pid}${normal}"
+  echo "${bold}Parent PID       : ${parent_pid}${normal}"
+
 fi
 
 #run before exiting
@@ -104,9 +108,24 @@ finish () {
     [ -n "$verbose" ] && echo "${bold}killing timeout process $timeout_pid${normal}"
     kill -s 1 "$timeout_pid"
   fi
-  if [ -n "$kill_parent" ]; then
-    [ -n "$verbose" ] && echo "${bold}Killing parents${normal}"
-    kill -s $kill_signal 0
+  if [ -z "$command"]; then
+    if [ -z "$kill_parent" ]; then
+      [ -n "$verbose" ] && echo "${bold}Killing siblings ${normal}"
+      #to kill everything in the same pipe, we assemble all other PID's in the group that are LOWER than our own PID,
+      #and HIGHER than the direct parent PID
+      pgid=$( ps -o '%r' $my_pid | grep -Po '\b\d+\b' )
+      process_group=($(pgrep -g $pgid | sort))
+      for member_pid in "${process_group[@]}"; do
+        if [ "$member_pid" -lt "$my_pid" ] && [ "$member_pid" -gt "$parent_pid" ] ; then
+          [ -n "$verbose" ] && echo "${bold}Killing PID ${member_pid} ${normal}"
+          kill -s $kill_signal $member_pid
+        fi
+      done;
+    else
+      [ -n "$verbose" ] && echo "${bold}Killing parent, PID ${parent_pid} ${normal}"
+      #would be great if there was a way to suppress the "hangup" message and the 129 return code
+      kill -s $kill_signal $parent_pid
+    fi
   fi
   exit 0
 }
@@ -115,8 +134,9 @@ on_term () {
   [ -n "$verbose" ] && echo "${bold}Receiving TERM signal${normal}"
   finish
 }
+
 # Execute function on_term() receiving TERM signal
-trap 'on_term' TERM
+trap on_term TERM
 
 #run a string test
 runTest () {
@@ -181,10 +201,11 @@ if [ -n "$command" ]; then
   done
 else
   #Or take lines from stdin in a loop and check these
-  while read input_line && [ -z "$result_found" ]; do
+  [ -n "$verbose" ] && echo "${bold}Listening to /dev/stdin${normal}"
+  while read input_line; do
     [ -z "$quiet" ] && echo "${bold}Input line: ${normal}${input_line}"
     runTest "$input_line" "$expected_string"
-  done
+  done < /dev/stdin
 fi
 
 
