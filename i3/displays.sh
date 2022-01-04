@@ -15,19 +15,14 @@ if [ -n "${all_monitors[1]}" ]; then
   $command
 fi
 
-inverted_state=$monitor_state
-[ "$monitor_state" == "right-of" ] && inverted_state='left-of'
-[ "$monitor_state" == "left-of" ] && inverted_state='right-of'
-
+[ "$monitor_state" == "right-of" ] && inverted_state='left-of' && new_monitor_state='left-of'
+[ "$monitor_state" == "left-of" ] && inverted_state='right-of' && new_monitor_state='same-as'
+[ "$monitor_state" == "same-as" ] && inverted_state='same-as' && new_monitor_state='right-of'
 
 if [ -n "${all_monitors[2]}" ]; then
   [ -n "$main_monitor" ] && orientation="--${inverted_state} ${main_monitor}"
   [ -z "$main_monitor" ] && orientation="--${monitor_state} ${all_monitors[1]}"
   xrandr --output ${all_monitors[2]} --auto ${orientation}
 fi
-
-[ "$monitor_state" == "right-of" ] && new_monitor_state='left-of'
-[ "$monitor_state" == "left-of" ] && new_monitor_state='same-as'
-[ "$monitor_state" == "same-as" ] && new_monitor_state='right-of'
 
 echo $new_monitor_state > /tmp/i3script_monitorstate
