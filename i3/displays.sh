@@ -12,6 +12,7 @@ if [ -n "${all_monitors[1]}" ]; then
   [ -n "$main_monitor" ] && orientation="--${monitor_state} ${main_monitor}"
   command="xrandr --output ${all_monitors[1]} --auto ${orientation}"
   #echo $command
+  notify-send --icon=gtk-info Screens "Secondary screen orentation ${monitor_state} laptop screen"
   $command
 fi
 
@@ -23,6 +24,7 @@ if [ -n "${all_monitors[2]}" ]; then
   [ -n "$main_monitor" ] && orientation="--${inverted_state} ${main_monitor}"
   [ -z "$main_monitor" ] && orientation="--${monitor_state} ${all_monitors[1]}"
   xrandr --output ${all_monitors[2]} --auto ${orientation}
+  notify-send --icon=gtk-info Screens "Tertiary screen orentation ${monitor_state} laptop screen"
 fi
 
 echo $new_monitor_state > /tmp/i3script_monitorstate

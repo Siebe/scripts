@@ -4,10 +4,8 @@ echo $REDSHIFT_ON
 
 if [ "0" -ne "$REDSHIFT_OFF" ]
 then
-	echo "redshift on"
-	redshift -O 3500 2>&1 > /dev/null 
+	redshift -O 3500 2>&1 > /dev/null && notify-send --icon=gtk-info Redshift "Redshift on"
 else
-	echo "redshift off"
-	redshift -x 2>&1 > /dev/null
+	redshift -x 2>&1 > /dev/null && notify-send --icon=gtk-info Redshift "Redshift off"
 fi
 
