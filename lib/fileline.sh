@@ -71,7 +71,7 @@ fi
 if [ -n "$by_key" ]; then
   extracted_key=''
   # match by key. if replace, expect the separator in the match input. if remove separator is not mandatory
-  if [[ $input == *"$separator"* ]] || [ ! -z remove ]; then
+  if [[ $input == *"$separator"* ]] || [ -n "$remove" ]; then
       #this is "explode" in BASH
       IFS="$separator" read -ra key_value_array <<< "$input"
       extracted_key=${key_value_array[0]}
@@ -146,12 +146,12 @@ if [ -z "$remove" ]; then
   fi
 else
   [ -n "$verbose" ] && echo "Removing in $fullpath"
-  
+
   for line_number in "${match_lines[@]}"; do
     end_line_number={ $line_number + $input_linecount }
     [ -n "$verbose" ] && echo "Removing line $line_number to $end_line_number"
-    [ -z "$dry_run" ] && sed -ie "${$line_number},${end_line_number}d" $file
-    #no multi match? no match by key? only remove one line, so exit loop 
+    [ -z "$dry_run" ] && sed -ie "${line_number},${end_line_number}d" $file
+    #no multi match? no match by key? only remove one line, so exit loop
     [ -z "$all_matches" ] && exit 0
   done
 
