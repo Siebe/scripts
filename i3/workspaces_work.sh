@@ -47,11 +47,11 @@ if ! ( class_exists 'Pavucontrol' 1 || is_running 'pavucontrol' ); then
   i3-msg 'split vertical' > /dev/null
 fi
 
-if ! ( class_exists 'vlc' 1 || is_running 'vlc"' ); then
-  echo "Starting VLC"
-  run_and_focus 'vlc' 'vlc'
-  i3-msg 'resize set height 33 ppt' > /dev/null
-fi
+#if ! ( class_exists 'vlc' 1 || is_running 'vlc"' ); then
+#  echo "Starting VLC"
+#  run_and_focus 'vlc' 'vlc'
+#  i3-msg 'resize set height 33 ppt' > /dev/null
+#fi
 
 if ! ( class_exists 'nagstamon' 1 || is_running 'nagstamon' ); then
   echo "Starting Nagstamon"
