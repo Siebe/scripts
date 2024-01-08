@@ -2,7 +2,7 @@
 
 usage () {
   echo 'Append string to file if the string is not yet present or remove string if present. Usage:'
-	echo ' ./fileinput.sh [-rkavd] [-K separator] -f FILENAME -- STRING'
+	echo ' ./fileline.sh [-rkavd] [-K separator] -f FILENAME -- STRING'
 	echo '-f FILENAME = path to file'
 	echo 'STRING = string to add or remove'
 	echo '-r = remove string from file if present'
@@ -17,20 +17,19 @@ examples () {
   echo ""
   echo "Examples:"
   echo "Append a input to a config file if it is not present yet:"
-  echo "./fileinput.sh -f ~/myconfig.conf -- This is a new input"
+  echo "./fileline.sh -f ~/myconfig.conf -- This is a new input"
   echo ""
   echo "Remove a input from a config file if it is present:"
-  echo "./fileinput.sh -rf ~/myconfig.conf -- This input will be removed"
+  echo "./fileline.sh -rf /etc/someconfig.conf -- This input will be removed"
   echo ""
   echo "Change a key value setting or append it if not present yet:"
-  echo "./fileinput.sh -kf ~/myconfig.conf -- foo=bar"
+  echo "./fileline.sh -kf /tmp/tmpconfig.conf -- foo=bar"
   echo ""
   echo "Change a key value setting, but its separator is different (eg \": \"):"
-  echo "./fileinput.sh -k -K \" : \" -f ~/myconfig.conf -- foo: bar"
+  echo "./fileline.sh -k -K \" : \" -f /home/user/myconfig.conf -- foo: bar"
   echo ""
   echo "Remove all entries with the key \"foo\":"
-  echo "./fileinput.sh -ark -f ~/myconfig.conf -- foo"
-
+  echo "./fileline.sh -ark -f ~/myconfig.conf -- foo"
 }
 
 separator="="
@@ -61,10 +60,10 @@ regexsafe_input=${input//\//\\/}
 
 [ -z "$input" ] && { >&2 echo 'Error: STRING required'; usage; exit 1; }
 
-inputlines=$(echo "$input" | wc -l)
+input_linecount=$(echo "$input" | wc -l)
 
 #TODO handle multple lines for not by key
-if [ "$inputlines" -gt "1" ]; then
+if [ "$input_linecount" -gt "1" ]; then
   >&2 echo "Error: cannot handle multiple lines of input"; usage; exit 1;
 fi
 
@@ -134,7 +133,7 @@ if [ -z "$remove" ]; then
     if [ -n "$all_matches" ]; then
       for line_number in "${match_lines[@]}"; do
         [ -n "$verbose" ] && echo "Replacing line $line_number with $regexsafe_input"
-        [ -z "$dry_run" ] && sed -i "${$line_number}s/.*/${regexsafe_input}/g" $file
+        [ -z "$dry_run" ] && sed -i "${line_number}s/.*/${regexsafe_input}/g" $file
       done
     else
       [ -n "$verbose" ] && echo "Replacing line ${match_lines[0]} with $regexsafe_input"
