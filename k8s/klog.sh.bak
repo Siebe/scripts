@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+KUBECTL_CONTEXT=${KUBECTL_CONTEXT-''}
+KUBECTL_NAMESPACE=${KUBECTL_NAMESPACE}
+container=''
+kget_arguments=''
+
+while getopts "hc:o:dplv" options
+do
+	case $options in
+		h ) usage; examples; exit 0;;
+    c ) KUBECTL_CONTEXT=${OPTARG};;
+    o ) container=${OPTARG};;
+    d ) deploy_pattern=1;;
+    l ) label_pattern=1;; #lowercase
+    p ) podname_pattern=1;;
+    v ) verbose=1;;
+    ? ) echo 'Error: invalid option'; usage; exit 1;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ $# -eq 1 ] ; then
+  #one argument found, pattern for name to lowercase
+  input_pattern="${1,,}"
+fi
+if [ $# -eq 2 ] ; then
+  #two arguments found, pattern for name and kind to lowercase
+  input_pattern="${2,,}"
+  KUBECTL_NAMESPACE="${1,,}"
+fi
+
+[ "$KUBECTL_NAMESPACE" != '' ] && kget_arguments="${kget_arguments} -n $KUBECTL_NAMESPACE"
+[ "$KUBECTL_CONTEXT" != '' ] && kget_arguments="${kget_arguments} -c $KUBECTL_CONTEXT"
+[ -n "$label_pattern" ] && kget_arguments="${kget_arguments} -l"
+
+
+#if [ -n "$deploy_pattern" ] || { [ -z "$label_pattern" ] && [ -z "$pod_pattern" ]; }; then
+ ##  kget_deploy_command="./kget.sh -j${kget_arguments} '(deployment|statefulset|daemonset)' ${input_pattern}  | jq -r '.kind, .name, .namespace' | head -n3"
+ ##  echo "$kget_deploy_command"
+ ##  kget_result=( $(bash -c "$kget_deploy_command") )
+ ##  [ -n "${kget_result[2]}" ] && log_target="${kget_result[0]}/${kget_result[1]}" && log_namespace=${kget_result[2]}
+ ##fi
+ ##
+ ##if  [ -z "$log_namespace" ] && { [ -n "$label_pattern" ] ||  [ -z "$pod_pattern" ]; }; then
+ ##  kget_label_command="./kget.sh -j${kget_arguments} -l ${input_pattern} (deployment|statefulset|daemonset) . | jq -r '.kind, .name, .namespace' | head -n3"
+ ##  echo "$kget_label_command"
+ ##  kget_result=( $(bash -c "$kget_label_command") )
+ ##  [ -n "${kget_result[2]}" ] && log_target="${kget_result[0]}/${kget_result[1]}" && log_namespace=${kget_result[2]}
+ ##fi
+ ##
+ ##if  [ -z "$log_namespace" ]; then
+ ##  kget_pod_command="./kget.sh -k pod -j${kget_arguments} ${input_pattern}  | jq -r '.name, .namespace' | head -n2"
+ ##  echo "$kget_pod_command"
+ ##  kget_result=( $(bash -c "$kget_pod_command") )
+ ##  [ -n "${kget_result[1]}" ] && log_target="pod/${kget_result[0]}" && log_namespace=${kget_result[1]}
+ ##fi
+
+if  [ -z "$log_namespace" ]; then
+  echo "Nothing found to log"
+  exit
+fi
+
+command="kubectl logs -n ${log_namespace} -f${logs_arguments} ${log_target}"
+echo $command
+kget_result=( $(bash -c "$command") )
+
+#entry=(`kubectl get pods --all-namespaces | grep $1 | head -n1`)
+#echo --- Logs from ${entry[1]} \(${entry[0]}\): ---
+#kubectl logs -f -n${entry[0]} ${entry[1]} --all-containers

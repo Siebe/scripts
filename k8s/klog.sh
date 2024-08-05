@@ -32,7 +32,7 @@ examples() {
   echo ''
   echo 'Log pods from "workers" namespace, "my-cluster" context and scan for new pods every 2 minutes:'
   echo './klog.sh -c my-cluster -s 120 workers nginx'
-  echo''
+  echo ''
   echo 'Log pods from "monitoring" namespace, pods names start with "server", don''t scan for new pods'
   echo './klog.sh -s 0 monitoring "\bserver"'
 }
@@ -41,8 +41,6 @@ examples() {
 
 KUBECTL_CONTEXT=${KUBECTL_CONTEXT-''}
 KUBECTL_NAMESPACE=${KUBECTL_NAMESPACE-'default'}
-[ -n "$SCRIPT_DIR" ] && kget_executable="${SCRIPT_DIR}/k8s/kget.sh" || \
-  kget_executable="$(dirname -- "$( readlink -f -- "$0"; )")/kget.sh"
 kget_arguments=''
 kget_command=''
 log_arguments=''
@@ -53,10 +51,16 @@ tail='-1'
 scan_interval='30'
 process_was_running=1
 maximum_pods=10
+number_regex='^[0-9]+$'
+scanning_in_progress=0
 
 log_pids=()
 log_pods=()
 log_index=0
+
+#https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
+[ -n "$SCRIPT_DIR" ] && kget_executable="${SCRIPT_DIR}/k8s/kget.sh" || \
+  kget_executable="$(dirname -- "$( readlink -f -- "$0"; )")/kget.sh"
 
 ## Functions ##
 
@@ -86,13 +90,19 @@ array_remove_index() {
 
 log_template_json() {
   while read log_logline; do
+    received_at=$(date --iso-8601=seconds)
     log_line_escaped="${log_logline//\\/\\\\}"
     log_line_escaped="${log_line_escaped//\"/\\\"}"
-    echo "{\"name\":\"${1}\",\"log\":\"${log_line_escaped}\"}"
+    echo "{\"name\":\"${1}\",\"received_at\": \"${received_at}\",\"log\":\"${log_line_escaped}\"}"
   done
 }
 
 scan_pods_and_log() {
+  if [ $scanning_in_progress -eq 1 ]; then
+    [ -n "$verbose" ] && echo "Scan already in progress, aborting"
+    return 0
+  fi
+  scanning_in_progress=1
   [ -n "$verbose" ] && echo "Scan pods with command: ${kget_command}"
   podlist=( $(bash -c "$kget_command") )
 
@@ -102,11 +112,11 @@ scan_pods_and_log() {
     existing_index=$(array_find "$pod" "${log_pods[@]}")
     if [ "$existing_index" -gt -1 ]; then
       pid=${log_pids[${existing_index}]}
-      if ps -p $pid > /dev/null; then
-        [ -n "$verbose" ] && echo "Already logging ${pod}"
+      if ps -p "$pid" > /dev/null; then
+        [ -n "$verbose" ] && echo "Already logging ${pod}, pid: ${pid}"
         continue;
       fi
-      [ -n "$verbose" ] && echo "Processs stopped for ${pod}, trying again."
+      [ -n "$verbose" ] && echo "Processs ${pid} for ${pod} stopped, trying again."
       log_pids=( $(array_remove_index "$existing_index" "${log_pids[@]}") )
       log_pods=( $(array_remove_index "$existing_index" "${log_pods[@]}") )
     fi
@@ -114,13 +124,16 @@ scan_pods_and_log() {
       [ -n "$verbose" ] && echo "Already logging maximum amount of pods"
       continue;
     fi
-    log_command="kubectl logs -f${log_arguments} $pod"
+    log_command="kubectl logs --max-log-requests 10 -f${log_arguments} $pod"
     [ -n "$verbose" ] && echo "Spawning log process with command: ${log_command}"
-    bash -c "$log_command" | log_template_json $pod &
-    log_pids[${log_index}]=$!
+    bash -c "$log_command" | log_template_json "$pod" &
+    pid=$!
+    log_pids[${log_index}]=$pid
     log_pods[${log_index}]=$pod
     log_index=$((log_index+1))
+    [ -n "$verbose" ] && echo "Process ${pid} for ${pod} started"
   done;
+  scanning_in_progress=0
 }
 
 start_scan_loop() {
@@ -159,13 +172,8 @@ if [ $# -ge 2 ] ; then
   input_pattern="${2,,}"
 fi
 
-re='^[0-9]+$'
-if ! [[ $scan_interval =~ $re ]] ; then
-   echo "error: SCAN_INTERVAL is not a number" >&2; exit 1
-fi
-if ! [[ $maximum_pods =~ $re ]] ; then
-   echo "error: MAXIMUM_PODS is not a number" >&2; exit 1
-fi
+[[ $scan_interval =~ $number_regex ]] || { echo "error: SCAN_INTERVAL is not a number" >&2; exit 1; }
+[[ $maximum_pods =~ $number_regex ]] || { echo "error: MAXIMUM_PODS is not a number" >&2; exit 1; }
 
 if [ -n "$verbose" ]; then
   [ "$KUBECTL_CONTEXT" != '' ] &&  echo "Alternative k8s context: ${KUBECTL_CONTEXT}" ||\
@@ -176,10 +184,11 @@ if [ -n "$verbose" ]; then
   [ "$container" != '' ] && echo "Log container: ${container}" || echo "Log all containers"
 fi
 
-[ "$KUBECTL_CONTEXT" != '' ] && kget_arguments="${kget_arguments} --context ${KUBECTL_CONTEXT}"
-kget_arguments="${kget_arguments} -n ${KUBECTL_NAMESPACE}"
+[ "$KUBECTL_CONTEXT" != '' ] && kget_arguments="${kget_arguments} -c ${KUBECTL_CONTEXT}" && \
+  log_arguments="${log_arguments} --context ${KUBECTL_CONTEXT}"
 
-log_arguments="$kget_arguments"
+kget_arguments="${kget_arguments} -n ${KUBECTL_NAMESPACE}"
+log_arguments="${log_arguments} -n ${KUBECTL_NAMESPACE}"
 
 [ -n "$label_pattern" ] && kget_arguments="${kget_arguments} -l" && \\
 
@@ -190,7 +199,7 @@ log_arguments="${log_arguments} --tail ${tail}"
 kget_command="${kget_executable} -k pod -j${kget_arguments} \"${input_pattern}\" | \
 jq -r 'select(.podStatus == \"Running\") | .name' | sed 's/\\n/ /'"
 
-## Scan and Log ##
+## Scan and Log Processing ##
 
 [ -n "$verbose" ] && echo "Starting initial Scan for pods";
 scan_pods_and_log
@@ -207,11 +216,16 @@ while [ $process_was_running -eq 1 ]; do
   # wait for all pids
   process_was_running=0
   for pid in ${log_pids[*]}; do
-      [ "$pid" == '' ] && continue
-      [ "$scan_interval" -ge 1 ] && ps -p $pid > /dev/null && process_was_running=1
-      wait $pid
+    { [ "$pid" == '' ] || [ -z "$pid" ]; } && continue
+    if ps -p $pid > /dev/null; then
+      [ -n "$verbose" ] && echo "Logging process ${pid} is running, awaiting"
+      process_was_running=1
+    fi
+    wait $pid
+          [ -n "$verbose" ] && echo "Process ${pid} already stopped"
+
   done
-  if [ $process_was_running -eq 1 ]; then
+  if [ "$scan_interval" -ge 1 ] && [ $process_was_running -eq 1 ]; then
     [ -n "$verbose" ] && echo "All logging processes stopped, scanning again in ${scan_interval} seconds";
     sleep "$scan_interval"
     scan_pods_and_log

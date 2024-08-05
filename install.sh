@@ -128,14 +128,14 @@ if [ -z "$no_backups" ]; then
     file=$1
     [ ! -f "$file" ] && ([ -n "$verbose" ] && echo "No backup to be made, file does not exist: ${file}"; exit 0)
     [ -f "${file}.bak.${today}" ] && ([ -n "$verbose" ] && echo "No backup to be made, today's backup already exists: ${file}.bak.${today}"; exit 0)
-    [ -z "$dry_run"] && cp "$file" "${file}.bak.${today}"
+    [ -z "$dry_run" ] && cp "$file" "${file}.bak.${today}"
   }
 
   echo "* creating Backups"
   createBackup $PROFILE
   [ -n "$shellconfig" ] && createBackup $shellconfig
   [ -z "$shellconfig" ] && createBackup $BASH_CONFIG && createBackup $ZSH_CONFIG
-  [ -z "$no_i3 "] && createBackup $I3_CONFIG
+  [ -z "$no_i3 " ] && createBackup $I3_CONFIG
 else
   [ -n "$verbose" ] && echo "Skipping backups"
 fi
