@@ -7,8 +7,9 @@ usage () {
   echo "-f SHELLCONFIG: path to shell config file, zsh AND bash by default"
   echo "-p: attempt to install prequisites"
   echo "-G: no gui (i3)"
-  echo "-K: no Kubernetes stuff (k8s)"
-  echo "-w: work stuff (Pluxbox), some extra shell scripts and aliases"
+  echo "-K: no Kubernetes packages/aliases (k8s)"
+  echo "-e: extra packages (gui only)"
+  echo "-w: work packages/aliases (Pluxbox)"
   echo "-B: no backups"
   echo "-d: dry-run"
   echo "-v: verbose mode"
@@ -17,7 +18,16 @@ usage () {
 
 verbose=0
 
-while getopts ":hrm:f:pGKwBvd" options
+main_packages="curl cowsay gcc make ntp python3 vim zsh" 
+gui_packages="i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock xdotool imagemagick"
+extra_packages="blueman docker.io ffmpeg gzip imagemagick jq mixxx mpv nmap pavucontrol rsync sox thefuck traceroute unrar wine winetricks whois xclip"
+extra_snap_packages="brave cups nvim pinta rustup vlc"
+extra_snap_packages_classic=""
+work_packages="ansible google-chrome-stable docker.io git-secret jq nagstamon nmap rsync traceroute whois wireguard"
+work_snap_packages="doctl firefox insomnia postman"
+work_snap_packages_classic="helm phpstorm"
+
+while getopts ":hrm:f:pGKewBvd" options
 do
 	case $options in
     h ) usage; exit 0;; #help duh
@@ -26,6 +36,7 @@ do
     p ) prequisites=1;; # Install stuff i like with apt/snap or just curl
     G ) no_i3=1;;
     K ) no_k8s=1;;
+    e ) install_extra=1;;
     w ) install_work=1;;
     B ) no_backups=1;;
     v ) [ "$verbose" -eq 1 ] && verbose=2 || verbose=1;;
@@ -95,6 +106,21 @@ appendEmptyLine () {
    [ -z "$dry_run" ] && [ -z "$remove" ] && echo "" >> $1
 }
 
+installAptPackages() {
+  package_list=$1
+  skip_prompt=""
+  [ -n "$2"] && skip_prompt="-y "
+  sudo apt install ${skip_prompt}${package_list}
+}
+
+installSnapPackages() {
+  package_list=($1)
+  classic_mode=""
+  [ -n "$2" ] && classic_mode=" --classic"
+  for pack in "${package_list[@]}"; do
+    sudo snap install ${pack}${classic_mode}
+  done
+}
 
 ###Verbose stuff
 if [ -n "$verbose" ]; then
@@ -106,6 +132,7 @@ if [ -n "$verbose" ]; then
   echo -n "Other shell config    : "; [ -n "$shellconfig" ] && echo "$shellconfig" || echo "{none}"
   echo -n "Install i3/gui        : "; [ -n "$no_i3" ] && echo "no" || echo "yes"
   echo -n "Install k8s           : "; [ -n "$remove" ] && echo "no" || echo "yes"
+  echo -n "Install extra         : "; [ -n "$install_extra" ] && echo "yes" || echo "no"
   echo -n "Install work          : "; [ -n "$install_work" ] && echo "yes" || echo "no"
   echo -n "Skip backups          : "; [ -n "$no_backups" ] && echo "yes" || echo "no"
   echo -n "I3 config found       : "; [ -f "$I3_CONFIG" ] && echo "yes" || echo "no"
@@ -145,12 +172,29 @@ fi
 [ -n "$prequisites" ] && [ -n "$dry_run" ] && [ -n "$verbose" ] && echo "Not installing prequisites in dry-run mode..."
 [ -n "$prequisites" ] && [ -n "$remove" ] && [ -n "$verbose" ] && echo "Not installing prequisites when removing"
 if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
-  echo "* installing APT prequisites"
+  echo "* Installing prequisites"
+  [ -n "$verbose" ] && echo "* updating current APT packages"
   sudo apt update && sudo apt dist-upgrade -y
-  sudo apt install vim zsh curl python thefuck pavucontrol jq cowsay
   sudo apt autoremove -y && sudo apt clean
-  [ -z "$no_i3" ] && sudo apt install i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock imagemagick
-  echo "* installing Snap prequisites"
+  [ -n "$verbose" ] && echo "* refreshing snap"
+  sudo snap refresh
+  [ -n "$verbose" ] && echo "* installing main/gui APT packages"
+  installAptPackages "$main_packages"
+  [ -z "$no_i3" ] && installAptPackages "$gui_packages"
+  if [ -n "$install_extra" ]; then
+    [ -n "$verbose" ] && echo "* installing extra APT packages"
+    installAptPackages "$extra_packages" 
+    [ -n "$verbose" ] && echo "* installing extra Snap packages"
+    installSnapPackages "$extra_snap_packages"
+    installSnapPackages "$extra_snap_packages_classic" 1
+  fi
+  if [ -n "$install_work" ]; then 
+    [ -n "$verbose" ] && echo "* installing work APT packages"
+    installAptPackages "$work_packages" 
+    [ -n "$verbose" ] && echo "* installing work Snap packages"
+    installSnapPackages "$work_snap_packages"
+    installSnapPackages "$work_snap_packages_classic" 1
+  fi
   [ -z "$no_k8s" ] && sudo snap install kubectl --classic
   if [ -z "$no_i3" ] && [ ! -f "$I3_CONFIG" ]; then
     echo "* initiating i3 config"
@@ -162,7 +206,6 @@ if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
   fi
 fi
-
 
 #### Some functions to add various stuff to various files
 install_k8s_aliases () {
