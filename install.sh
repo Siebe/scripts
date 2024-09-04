@@ -19,7 +19,7 @@ usage () {
 verbose=0
 
 main_packages="curl cowsay gcc make ntp python3 vim zsh" 
-gui_packages="i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh xautolock xdotool imagemagick"
+gui_packages="i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh rofi xautolock xdotool imagemagick"
 extra_packages="blueman docker.io ffmpeg gzip imagemagick jq mixxx mpv nmap pavucontrol rsync sox thefuck traceroute unrar wine winetricks whois xclip"
 extra_snap_packages="brave cups pinta"
 extra_snap_packages_classic="nvim rustup vlc"
@@ -41,7 +41,7 @@ do
     B ) no_backups=1;;
     v ) [ "$verbose" -eq 1 ] && verbose=2 || verbose=1;;
     d ) dry_run=1;;
-    ? ) echo 'Error: invalid option'; usage; exit 1;;
+    ? ) { >&2 echo 'Error: invalid option'; usage; exit 1; };;
 	esac
 done
 
@@ -80,15 +80,12 @@ fi
 [ -n "$verbose" ] && echo "Finished preflight checks"
 
 
-### Prepare the flags for the beautiful $removeEmptyLines command:
+### Prepare the flags for the beautiful $fileLine command:
 [ -n "$verbose" ] && echo "Preparing fileline command"
-if [ -z "$remove" ]; then
-  fileLine="$SCRIPT_DIR/lib/fileline.sh -"
-else
-  fileLine="$SCRIPT_DIR/lib/fileline.sh -r"
-fi
+fileLine="$SCRIPT_DIR/lib/fileline.sh -"
+[ -n "$remove" ] && fileLine="${fileLine}r"
 [ -n "$dry_run" ] && fileLine="${fileLine}d"
-[ -n "$verbose" ] && [ "$verbose" -gt 1 ] && fileLine="${fileLine}v"
+[ -n "$verbose" ] && fileLine="${fileLine}v"
 fileLine="${fileLine}f"
 
 
@@ -199,7 +196,7 @@ if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
   if [ -z "$no_i3" ] && [ ! -f "$I3_CONFIG" ]; then
     echo "* initiating i3 config"
     mkdir -p $HOME/.config/i3
-    cp $SCRIPT_DIR/lib/configs/i3config.conf $I3_CONFIG
+    cp $SCRIPT_DIR/resources/configs/i3config.conf $I3_CONFIG
   fi
   if [ ! -d "$OH_MY_ZSH_CONFIG" ]; then
     echo "* installing oh-my-zsh from Github"

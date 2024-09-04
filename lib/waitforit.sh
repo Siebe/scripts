@@ -108,7 +108,7 @@ finish () {
     [ -n "$verbose" ] && echo "${bold}killing timeout process $timeout_pid${normal}"
     kill -s 1 "$timeout_pid"
   fi
-  if [ -z "$command"]; then
+  if [ -z "$command" ]; then
     if [ -z "$kill_parent" ]; then
       [ -n "$verbose" ] && echo "${bold}Killing siblings ${normal}"
       #to kill everything in the same pipe, we assemble all other PID's in the group that are LOWER than our own PID,
