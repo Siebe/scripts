@@ -147,7 +147,7 @@ else
   [ -n "$verbose" ] && echo "Removing in $fullpath"
 
   for line_number in "${match_lines[@]}"; do
-    end_line_number={ $line_number + $input_linecount }
+    end_line_number=$(( $line_number + $input_linecount ))
     [ -n "$verbose" ] && echo "Removing line $line_number to $end_line_number"
     [ -z "$dry_run" ] && sed -ie "${line_number},${end_line_number}d" $file
     #no multi match? no match by key? only remove one line, so exit loop

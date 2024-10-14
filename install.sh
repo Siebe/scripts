@@ -1,41 +1,38 @@
 #!/usr/bin/env bash
 
 usage () {
-  echo "Install my awesome scripts and configs, usage:"
-  echo "./install.sh [-rpGdvv] [-f SHELLCONFIG]"
+  echo "Install my awesome selection of packages, scripts and configs, usage:"
+  echo "./install.sh [-egwBdvv] [-f SHELLCONFIG]"
   echo "-r remove instead of install"
   echo "-f SHELLCONFIG: path to shell config file, zsh AND bash by default"
-  echo "-p: attempt to install prequisites"
-  echo "-G: no gui (i3)"
-  echo "-K: no Kubernetes packages/aliases (k8s)"
-  echo "-e: extra packages (gui only)"
-  echo "-w: work packages/aliases (Pluxbox)"
+  echo "-a: install everything!"
+  echo "-e: install extra moar packages and config"
+  echo "-g: install gui (i3) packages and config"
+  echo "-w: install work packages and config"
   echo "-B: no backups"
   echo "-d: dry-run"
   echo "-v: verbose mode"
   echo "-vv: deep verbose mode"
 }
 
-verbose=0
+main_packages="curl cowsay gcc make node ntp python3-dev python3-pip vim git rustup unrar unzip xclip ohmyzsh"
+extra_packages="alacritty npm:bash-language-server cargo:bluetui docker.io npm:eslint ffmpeg gzip imagemagick"
+extra_packages+=" jq nmap nvchad pkg-config rsync shellcheck sox traceroute whois"
 
-main_packages="curl cowsay gcc make ntp python3 vim zsh" 
-gui_packages="i3 i3blocks i3lock compton redshift scrot fonts-font-awesome feh rofi xautolock xdotool imagemagick"
-extra_packages="blueman docker.io ffmpeg gzip imagemagick jq mixxx mpv nmap pavucontrol rsync sox thefuck traceroute unrar wine winetricks whois xclip"
-extra_snap_packages="brave cups pinta"
-extra_snap_packages_classic="nvim rustup vlc"
-work_packages="ansible google-chrome-stable docker.io git-secret jq nagstamon nmap rsync traceroute whois wireguard"
-work_snap_packages="doctl firefox insomnia postman"
-work_snap_packages_classic="helm phpstorm"
+gui_packages="blueman compton i3 i3blocks i3lock fonts-font-awesome feh mpv redshift rofi scrot xautolock xdotool"
+extra_gui_packages="brave gedit mixxx nmap pinta pavucontrol rsync sox wine winetricks vlc"
 
-while getopts ":hrm:f:pGKewBvd" options
+work_packages="ansible doctl docker.io git-secret helm jq kubectl nmap rsync traceroute whois wireguard yq"
+work_gui_packages="firefox google-chrome-stable insomnia nagstamon phpstorm postman"
+
+while getopts ":hrm:f:agewBvd" options
 do
 	case $options in
     h ) usage; exit 0;; #help duh
     r ) remove=1;; # Removal instead of installation, no prequisites
-    f ) shellconfig="${OPTARG}";; # Use a alternative shell config file eg. $HOME/.csh
-    p ) prequisites=1;; # Install stuff i like with apt/snap or just curl
-    G ) no_i3=1;;
-    K ) no_k8s=1;;
+    f ) shellconfig="${OPTARG}";;
+    a ) install_gui=1;install_extra=1;install_work=1;;
+    g ) install_gui=1;;
     e ) install_extra=1;;
     w ) install_work=1;;
     B ) no_backups=1;;
@@ -47,35 +44,33 @@ done
 
 
 ### Globals
-export SCRIPT_DIR=$(dirname "$(realpath "$0")")
-I3_CONFIG=$HOME/.config/i3/config
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+export SCRIPT_DIR
+PROFILE=$HOME/.profile
 BASH_CONFIG=$HOME/.bashrc
 ZSH_CONFIG=$HOME/.zshrc
 OH_MY_ZSH_CONFIG=$HOME/.oh-my-zsh
-PROFILE=$HOME/.profile
-
+I3_CONFIGDIR=$HOME/.config/i3
+I3BLOCKS_CONFIGDIR=$HOME/.config/i3block
+ALACRITTY_CONFIGDIR=$HOME/.config/alacritty
+NVIM_CONFIGDIR=$HOME/.config/nvim
 
 ### Pre-flight-checks
 [ -n "$verbose" ] && echo "Running preflight checks"
+( type apt &>/dev/null ) || { >&2 echo "Error: want to install stuff, but apt not found!"; usage; exit 1; }
+type snap &>/dev/null || echo "Warning: want to install sfuff, but snap not found!";
 if [ ! -f "$PROFILE" ]; then
   #guess we *could* fallback to /.login i dunno
   echo "Warning: PROFILE file not found: ${HOME}/.profile, trying ${HOME}/.login"
   PROFILE=$HOME/.login
   [ ! -f "$PROFILE" ] && { >&2 echo "Error: PROFILE file not found: ${PROFILE}"; usage; exit 1; }
 fi
-if [ ! -f "$BASH_CONFIG" ] && [ ! -f "$ZSH_CONFIG" ] && [ ! - f "$shellconfig" ]; then
+if [ ! -f "$BASH_CONFIG" ] && [ ! -f "$ZSH_CONFIG" ] && [ ! -f "$shellconfig" ]; then
     >&2 echo "Error: Not a single shell config file found, no zsh, no bash, no nothin'"; usage; exit 1;
-fi
-if [ -z "$no_i3" ] && [ -z "$prequisites" ] && [ ! -f "$I3_CONFIG" ]; then
-    >&2 echo "Error: Can not add i3 stuffs without i3 config: ${I3_CONFIG}"; usage; exit 1;
-fi
-if [ -n "$prequisites" ]; then
-  ( type apt &>/dev/null ) || { >&2 echo "Error: want to install prequisites, but apt not found!"; usage; exit 1; }
-  ( type snap &>/dev/null ) || echo "Warning: want to install prequisites, but snap not found!";
 fi
 if [ -n "$shellconfig" ] && [ ! -f "$shellconfig" ]; then
   echo "Warning: can not find shell config file ${shellconfig}, so not doing that one today."
-  $shellconfig="";
+  shellconfig="";
 fi
 [ -n "$verbose" ] && echo "Finished preflight checks"
 
@@ -103,111 +98,53 @@ appendEmptyLine () {
    [ -z "$dry_run" ] && [ -z "$remove" ] && echo "" >> $1
 }
 
-installAptPackages() {
-  package_list=$1
-  skip_prompt=""
-  [ -n "$2"] && skip_prompt="-y "
-  sudo apt install ${skip_prompt}${package_list}
-}
-
-installSnapPackages() {
+installPackages() {
   package_list=($1)
-  classic_mode=""
-  [ -n "$2" ] && classic_mode=" --classic"
+  installer_flags="-y"
+  [ -n "$dry_run" ] && installer_flags="${installer_flags}d"
+  [ -n "$verbose" ] && installer_flags="${installer_flags}v"
+  [ -n "$remove" ] && installer_flags="${installer_flags}r"
   for pack in "${package_list[@]}"; do
-    sudo snap install ${pack}${classic_mode}
+    "$SCRIPT_DIR/lib/app_installer.sh" "$installer_flags" "$pack"
   done
 }
 
-###Verbose stuff
-if [ -n "$verbose" ]; then
-  echo "-----------------------------------------------------------------------------------------------------------"
-  echo -n "Removing              : "; [ -n "$remove" ] && echo "yes" || echo "no"
-  echo -n "Installing prequisites: "; [ -n "$prequisites" ] && echo "yes" || echo "no"
-  echo -n "Dry run               : "; [ -n "$dry_run" ] && echo "yes" || echo "no"
-  echo "Script Dir            : ${SCRIPT_DIR}"
-  echo -n "Other shell config    : "; [ -n "$shellconfig" ] && echo "$shellconfig" || echo "{none}"
-  echo -n "Install i3/gui        : "; [ -n "$no_i3" ] && echo "no" || echo "yes"
-  echo -n "Install k8s           : "; [ -n "$remove" ] && echo "no" || echo "yes"
-  echo -n "Install extra         : "; [ -n "$install_extra" ] && echo "yes" || echo "no"
-  echo -n "Install work          : "; [ -n "$install_work" ] && echo "yes" || echo "no"
-  echo -n "Skip backups          : "; [ -n "$no_backups" ] && echo "yes" || echo "no"
-  echo -n "I3 config found       : "; [ -f "$I3_CONFIG" ] && echo "yes" || echo "no"
-  echo -n "BASH config found     : "; [ -f "$BASH_CONFIG" ] && echo "yes" || echo "no"
-  echo -n "ZSH config found      : "; [ -f "$ZSH_CONFIG" ] && echo "yes" || echo "no"
-  echo -n "Oh-my-ZSH config found: "; [ -d "$OH_MY_ZSH_CONFIG" ] && echo "yes" || echo "no"
-  echo -n "Profile config found  : "; [ -f "$PROFILE" ] && echo "yes" || echo "no"
-  echo -n "Other shell found     : "; [ -f "$shellconfig" ] && echo "yes" || echo "no"
-  echo "Fileline command      : ${fileLine}"
-  echo "Removelines command   : ${removeEmptyLines}"
-  echo "-----------------------------------------------------------------------------------------------------------"
-fi
-
-
-### Backupsh
-if [ -z "$no_backups" ]; then
-  today=$(date +%Y%m%d)
-
-  createBackup () {
-    file=$1
-    [ ! -f "$file" ] && ([ -n "$verbose" ] && echo "No backup to be made, file does not exist: ${file}"; exit 0)
-    [ -f "${file}.bak.${today}" ] && ([ -n "$verbose" ] && echo "No backup to be made, today's backup already exists: ${file}.bak.${today}"; exit 0)
-    [ -z "$dry_run" ] && cp "$file" "${file}.bak.${today}"
-  }
-
-  echo "* creating Backups"
-  createBackup $PROFILE
-  [ -n "$shellconfig" ] && createBackup $shellconfig
-  [ -z "$shellconfig" ] && createBackup $BASH_CONFIG && createBackup $ZSH_CONFIG
-  [ -z "$no_i3 " ] && createBackup $I3_CONFIG
-else
-  [ -n "$verbose" ] && echo "Skipping backups"
-fi
-
-
-#### Install them exquisite prequisite applications:
-[ -n "$prequisites" ] && [ -n "$dry_run" ] && [ -n "$verbose" ] && echo "Not installing prequisites in dry-run mode..."
-[ -n "$prequisites" ] && [ -n "$remove" ] && [ -n "$verbose" ] && echo "Not installing prequisites when removing"
-if [ -n "$prequisites" ] && [ -z "$remove" ] && [ -z "$dry_run" ]; then
-  echo "* Installing prequisites"
-  [ -n "$verbose" ] && echo "* updating current APT packages"
-  sudo apt update && sudo apt dist-upgrade -y
-  sudo apt autoremove -y && sudo apt clean
-  [ -n "$verbose" ] && echo "* refreshing snap"
-  sudo snap refresh
-  [ -n "$verbose" ] && echo "* installing main/gui APT packages"
-  installAptPackages "$main_packages"
-  [ -z "$no_i3" ] && installAptPackages "$gui_packages"
-  if [ -n "$install_extra" ]; then
-    [ -n "$verbose" ] && echo "* installing extra APT packages"
-    installAptPackages "$extra_packages" 
-    [ -n "$verbose" ] && echo "* installing extra Snap packages"
-    installSnapPackages "$extra_snap_packages"
-    installSnapPackages "$extra_snap_packages_classic" 1
+install_font_zip_from_url() {
+  font_repo=$1
+  file_name=${font_repo##*/}
+  [ -n "$dry_run" ] || [ -n "$remove" ] && return 0
+  this_path=$(pwd)
+  FONT_PATH=${FONT_PATH-$HOME/.local/share/fonts}
+  [[ "$file_name" =~ \.zip$ ]] || { >&2 echo "$font_repo does not seem to be a zipfile"; return 1; }
+  mkdir -p "$FONT_PATH"
+  cd "$FONT_PATH" || { >&2 echo "could not create path $FONT_PATH"; return 1; }
+  command wget "$font_repo"
+  echo "${FONT_PATH}/${file_name}"
+  if ! [ -f "${FONT_PATH}/${file_name}" ]; then
+    >&2 "unable to download file frome $font_repo"
+    cd "$this_path" || { >&2 echo "could not return to path $this_path"; exit 1; }
+    return 1;
   fi
-  if [ -n "$install_work" ]; then 
-    [ -n "$verbose" ] && echo "* installing work APT packages"
-    installAptPackages "$work_packages" 
-    [ -n "$verbose" ] && echo "* installing work Snap packages"
-    installSnapPackages "$work_snap_packages"
-    installSnapPackages "$work_snap_packages_classic" 1
-  fi
-  [ -z "$no_k8s" ] && sudo snap install kubectl --classic
-  if [ -z "$no_i3" ] && [ ! -f "$I3_CONFIG" ]; then
-    echo "* initiating i3 config"
-    mkdir -p $HOME/.config/i3
-    cp $SCRIPT_DIR/resources/configs/i3config.conf $I3_CONFIG
-  fi
-  if [ ! -d "$OH_MY_ZSH_CONFIG" ]; then
-    echo "* installing oh-my-zsh from Github"
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-  fi
-fi
+  echo "* installing font ${file_name}"
+  command unzip "$file_name"
+  command rm "$file_name"
+  command fc-cache -f
+  command cd "$this_path"
+}
 
-#### Some functions to add various stuff to various files
-install_k8s_aliases () {
+
+#### Function to configure everything
+
+installWorkAliases () {
   file=$1
-  echo "* Installing k8s aliases in shell config ${file}"
+  echo "* Installing work aliases in shell config ${file}"
+  #--- Pluxbox stuff
+  appendEmptyLine $file
+  echo "* Installing PB aliases in shell config ${file}"
+  $fileLine $file -- "#### Custom Pluxbox scripts stuff ####"
+  $fileLine $file -- "alias kssh='\$SCRIPT_DIR/pb/kssh.sh'"
+  $fileLine $file -- "alias getsma='\$SCRIPT_DIR/pb/getsma.sh'"
+  #End Pluxbox stuff
   appendEmptyLine $file
   $fileLine $file -- "#### Custom K8S scripts stuff ####"
   $fileLine $file -- "alias kellogs='\$SCRIPT_DIR/k8s/klog.sh'"
@@ -216,22 +153,10 @@ install_k8s_aliases () {
   $fileLine $file -- "alias kget='\$SCRIPT_DIR/k8s/kget.sh'"
   $fileLine $file -- "alias kwatch='\$SCRIPT_DIR/k8s/kwatch.sh'"
   $fileLine $file -- "alias krestart='\$SCRIPT_DIR/k8s/krestart.sh'"
+
 }
 
-install_work_aliases () {
-  file=$1
-  echo "* Installing work aliases in shell config ${file}"
-  #--- Pluxbox stuff
-  appendEmptyLine $file
-  echo "* Installing PB aliases in shell config ${file}"
-  $fileLine $file -- "#### Custom Pluxbox scripts stuff ####"
-  $fileLine $file -k -- "export KANTOORIP=92.66.145.13"
-  $fileLine $file -- "alias kssh='\$SCRIPT_DIR/pb/kssh.sh'"
-  $fileLine $file -- "alias getsma='\$SCRIPT_DIR/pb/getsma.sh'"
-  #End Pluxbox stuff
-}
-
-install_lib_aliases () {
+installLibAliases () {
   file=$1
   echo "* Installing other aliases in shell config ${file}"
   appendEmptyLine $file
@@ -241,12 +166,133 @@ install_lib_aliases () {
   $fileLine $file -- "alias ipcount='\$SCRIPT_DIR/lib/nginx-ip-count.sh'"
   $fileLine $file -- "alias whatsmyip='\$SCRIPT_DIR/lib/whatsmyip.sh'"
   $fileLine $file -- "alias remove-empty-lines='\$SCRIPT_DIR/lib/remove-empty-lines.sh'"
+  $fileLine $file -- "alias inst='\$SCRIPT_DIR/lib/app_installer.sh'"
 }
 
-update_i3_config () {
-  echo "* Adding stuff to i3 config ${I3_CONFIG}"
+installMainConfiguration() {
+  if [ -n "$shellconfig" ]; then
+    installLibAliases "$shellconfig"
+  else
+    if [ -f "$BASH_CONFIG" ];then
+      installLibAliases "$BASH_CONFIG"
+    fi
+    if [ -f "$ZSH_CONFIG" ]; then
+      echo "* Setting ZSH as default shell"
+      command which zsh > /dev/null && command sudo chsh -s "$(which zsh)" "$USER"
+      installLibAliases "$ZSH_CONFIG"
+    fi
+  fi
 }
 
+installExtraConfiguration() {
+  if [ -n "$shellconfig" ] && [ -f "$ZSH_CONFIG" ]; then
+      echo "* Configuring Oh My Zsh plugins"
+      $fileLine "$ZSH_CONFIG" -k -- "plugins=(ansible composer docker doctl docker-compose dotenv git helm kubectl laravel nvm npm rsync rust ssh-agent ufw vim-interaction)"
+  fi
+  if [ -z "$dry_run" ] && [ -z "$remove" ]; then
+    echo "* Configuring Alacritty"
+    command mkdir -p "$ALACRITTY_CONFIGDIR"
+    command cp "$SCRIPT_DIR/resources/configs/alacritty.toml" "$ALACRITTY_CONFIGDIR/alacritty.toml"
+    command cp "$SCRIPT_DIR/resources/configs/alacritty-theme.toml" "$ALACRITTY_CONFIGDIR/alacritty-theme.toml"
+    echo "* Configuring nvim"
+    command mkdir -p "$NVIM_CONFIGDIR"
+    command cp -r "$SCRIPT_DIR"/resources/configs/nvim/* "$NVIM_CONFIGDIR/."
+    install_font_zip_from_url 'https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/Cousine.zip'
+    command nvim --headless '+Lazy! sync' '+qa'
+    command nvim --headless '+MasonToolsUpdateSync' '+qa'
+  fi
+}
+
+installGuiConfiguration() {
+  if [ -z "$dry_run" ] && [ -z "$remove" ]; then
+    echo "* Configuring i3 and i3blocks"
+    command mkdir -p "$I3_CONFIGDIR"
+    command mkdir -p "$I3BLOCKS_CONFIGDIR"
+    command cp "$SCRIPT_DIR/resources/configs/i3config.conf" "$I3_CONFIGDIR/config"
+    command cp "$SCRIPT_DIR/resources/configs/i3blocks.conf" "$I3BLOCKS_CONFIGDIR/config"
+    command i3-msg reload
+  fi
+}
+
+installWorkConfiguration() {
+  if [ -n "$shellconfig" ]; then
+    installWorkAliases "$shellconfig"
+  else
+    if [ -f "$BASH_CONFIG" ];then
+      installWorkAliases "$BASH_CONFIG"
+      $fileLine $BASH_CONFIG -- "alias k='kubectl'"
+      $fileLine $BASH_CONFIG -- "source <(kubectl completion bash)"
+      $fileLine $BASH_CONFIG -- "source <(k completion bash | sed \"s/\bkubectl\b/k/g\")"
+    fi
+    if [ -f "$ZSH_CONFIG" ]; then
+      installWorkAliases "$ZSH_CONFIG"
+    fi
+  fi
+}
+
+###Verbose stuff
+if [ -n "$verbose" ]; then
+  echo "-----------------------------------------------------------------------------------------------------------"
+  echo "HOME                  : ${HOME}"
+  echo "USER                  : ${USER}"
+  echo -n "Removing              : "; [ -n "$remove" ] && echo "yes" || echo "no"
+  echo -n "Dry run               : "; [ -n "$dry_run" ] && echo "yes" || echo "no"
+  echo "Script Dir            : ${SCRIPT_DIR}"
+  echo -n "Other shell config    : "; [ -n "$shellconfig" ] && echo "$shellconfig" || echo "{none}"
+  echo -n "Install i3/gui        : "; [ -n "$install_gui" ] && echo "yes" || echo "no"
+  echo -n "Install extra         : "; [ -n "$install_extra" ] && echo "yes" || echo "no"
+  echo -n "Install work          : "; [ -n "$install_work" ] && echo "yes" || echo "no"
+  echo -n "Skip backups          : "; [ -n "$no_backups" ] && echo "yes" || echo "no"
+  echo -n "i3 configdir found    : "; [ -d "$I3_CONFIGDIR" ] && echo "yes" || echo "no"
+  echo -n "i3blocks configdir... : "; [ -d "$I3_CONFIGDIR" ] && echo "yes" || echo "no"
+  echo -n "Alacritty configdir.. : "; [ -d "$ALACRITTY_CONFIGDIR" ] && echo "yes" || echo "no"
+  echo -n "BASH config found     : "; [ -f "$BASH_CONFIG" ] && echo "yes" || echo "no"
+  echo -n "ZSH config found      : "; [ -f "$ZSH_CONFIG" ] && echo "yes" || echo "no"
+  echo -n "Oh-my-ZSH config found: "; [ -d "$OH_MY_ZSH_CONFIG" ] && echo "yes" || echo "no"
+  echo -n "Nvim configdir found  : "; [ -d "$NVIM_CONFIGDIR" ] && echo "yes" || echo "no"
+  echo -n "Profile config found  : "; [ -f "$PROFILE" ] && echo "yes" || echo "no"
+  echo -n "Other shell found     : "; [ -f "$shellconfig" ] && echo "yes" || echo "no"
+  echo "Fileline command      : ${fileLine}"
+  echo "Removelines command   : ${removeEmptyLines}"
+  echo "-----------------------------------------------------------------------------------------------------------"
+fi
+
+
+### Backups
+if [ -z "$no_backups" ]; then
+  today=$(date +%Y%m%d)
+
+  createBackup () {
+    path=$1
+    if [ ! -f "$path" ] && [ ! -d "$path" ]; then
+      [ -n "$verbose" ] && echo "No backup to be made, path does not exist: ${path}";
+      return 1
+    fi
+    [ -f "${file}.bak.${today}" ] &&\
+     ([ -n "$verbose" ] && echo "No backup to be made, today's backup already exists: ${path}.bak.${today}"; exit 0)
+    [ -n "$dry_run" ] && return 0
+    [ -f "$path" ] && cp "$path" "${path}.bak.${today}"
+    [ -d "$path" ] && cp -r "$path" "${path}.bak.${today}"
+  }
+
+  echo "* creating Backups"
+  createBackup $PROFILE
+  if [ -n "$shellconfig" ]; then
+    createBackup "$shellconfig"
+  else
+    [ -f "$BASH_CONFIG" ] && createBackup "$BASH_CONFIG"
+    [ -f "$ZSH_CONFIG" ] && createBackup "$ZSH_CONFIG"
+  fi
+  [ -n "$install_gui" ] && [ -f "$I3_CONFIGDIR/config" ] && createBackup "$I3_CONFIGDIR/config"
+  [ -n "$install_gui" ] && [ -f "$I3BLOCKS_CONFIGDIR/config" ] && createBackup "$I3BLOCKS_CONFIGDIR\config"
+  if [ -n "$install_extra" ]; then
+    [ -f "$ALACRITTY_CONFIGDIR/alacritty.toml" ] && createBackup "$ALACRITTY_CONFIGDIR/alacritty.toml"
+    [ -f "$ALACRITTY_CONFIGDIR/alacritty-theme.toml" ] && createBackup "$ALACRITTY_CONFIGDIR/alacritty-theme.toml"
+    [ -d "$NVIM_CONFIGDIR" ] && createBackup "$NVIM_CONFIGDIR"
+   fi
+else
+  [ -n "$verbose" ] && echo "Skipping backups"
+fi
 
 #### Let's get ready to rum... naah
 echo "* Adding stuff to profile ${PROFILE}"
@@ -255,48 +301,35 @@ $fileLine $PROFILE -- "#Custom scripts stuff"
 $fileLine $PROFILE -k -- "export SCRIPT_DIR=\"${SCRIPT_DIR}\""
 $removeEmptyLines $PROFILE
 
-if [ -n "$shellconfig" ]; then
-  install_lib_aliases $shellconfig
-  $fileLine $shellconfig -- "eval \"\$(thefuck --alias)\""
-  $fileLine $shellconfig -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
-
-  [ -z "$no_k8s" ] && install_k8s_aliases $shellconfig
-  [ -z "$no_k8s" ] && $fileLine $shellconfig -- "alias k='kubectl'"
-
-  [ -n "$install_work" ] && install_work_aliases $shellconfig
-
-  $removeEmptyLines $shellconfig
-else
-  if [ -f "$BASH_CONFIG" ];then
-    install_lib_aliases $BASH_CONFIG
-    $fileLine $BASH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
-    $fileLine $BASH_CONFIG -- "eval \"\$(thefuck --alias)\""
-
-    if [ -z "$no_k8s" ]; then
-      install_k8s_aliases $BASH_CONFIG
-      $fileLine $BASH_CONFIG -- "alias k='kubectl'"
-      $fileLine $BASH_CONFIG -- "source <(kubectl completion bash)"
-      $fileLine $BASH_CONFIG -- "source <(k completion bash | sed \"s/\bkubectl\b/k/g\")"
-    fi
-
-    [ -n "$install_work" ] && install_work_aliases $BASH_CONFIG
-
-    $removeEmptyLines $BASH_CONFIG
+echo "* Installing main packages"
+installPackages "$main_packages"
+echo "* Installing main configurations"
+installMainConfiguration
+if [ -n "$install_gui" ]; then
+  echo "* Installing gui(i3) packages"
+  installPackages "$gui_packages"
+  echo "* Installing gui(i3) configuration"
+  installGuiConfiguration
+fi
+if [ -n "$install_extra" ]; then
+  echo "* Installing extra packages"
+  installPackages "$extra_packages"
+  echo "* Installing extra configurations"
+  installExtraConfiguration
+  if [ -n "$install_gui" ]; then
+    echo "* Installing extra gui packages"
+    installPackages "$extra_gui_packages"
   fi
-  if [ -f "$ZSH_CONFIG" ]; then
-    $fileLine $ZSH_CONFIG -k -- "plugins=(ansible docker dotenv git golang homestead kubectl laravel microk8s npm python ssh-agent thefuck vim-interaction)"
-    install_lib_aliases $ZSH_CONFIG
-    $fileLine $ZSH_CONFIG -- "source ${SCRIPT_DIR}/lib/whatsmyip.sh > /dev/null #set wan ip address in env variables"
-
-    [ -z "$no_k8s" ] && install_k8s_aliases $ZSH_CONFIG
-
-    [ -n "$install_work" ] && install_work_aliases $ZSH_CONFIG
-
-    $removeEmptyLines $ZSH_CONFIG
+fi
+if [ -n "$install_work" ]; then
+  echo "* Installing work packages"
+  installPackages "$work_packages"
+  echo "* Installing work configuration"
+  installWorkConfiguration
+  if [ -n "$install_gui" ]; then
+    echo "* Installing work gui packages"
+    installPackages "$work_gui_packages"
   fi
 fi
 
-if [ -n "$no_i3" ]; then
-  update_i3_config
-fi
-
+echo "* Ktnxbye"
